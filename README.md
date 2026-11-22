@@ -1,56 +1,145 @@
-# Welcome to your Expo app 👋
+# Subscope
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Mobile client for the statement-import assignment: pick a PDF/CSV bank statement, upload it to the local mock API,
+show the recurring payments it finds, and delete the data from the server again. Expo SDK 58 / React Native 0.88,
+Android and iOS.
 
-## Get started
-
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+mobile-engineer-kit/   the supplied kit, byte-for-byte unchanged (checked by app/scripts/verify-kit.mjs)
+app/                   the Expo app
+  src/core/            import state machine, revision guard, recovery — plain TypeScript, no React Native
+  src/files/           picker → private copy → content sniff (sniff.ts is shared with the tests)
+  src/transport/       HTTP to the mock (upload streams from disk)
+  src/storage/         AsyncStorage persistence of the one import operation
+  src/ui/  src/diagnostics/  src/log/
+  test/                Vitest: unit + integration against the kit's createMockServer
+.github/workflows/ci.yml
 ```
 
-This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
+## Status
 
-### Other setup steps
+- **Android: not verified** — the full scenario list below is still to be run on a device. Checked so far on a physical
+  phone (development build): `GET /health` → 200, picking and copying a PDF.
+- **iOS: not verified** — no iOS run yet. The app runs in Expo Go (all native modules it uses are bundled there);
+  a native iOS build is produced by CI (`ios` job, simulator, unsigned) but has not been launched.
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+<!-- After recording, replace a line with e.g. "**Android: verified** — Pixel 7, Android 15, all 5 scenarios (video: …)". -->
 
-## Learn more
+## Clean checkout
 
-To learn more about developing your project with Expo, look at the following resources:
+Requirements: Node 22 (`.nvmrc`; the kit itself needs ≥ 20), and for native builds JDK 17 + Android SDK, or Xcode on macOS.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```bash
+git clone <repo> subscope && cd subscope
+cd app && npm ci
+npx tsc --noEmit && npx eslint . --max-warnings 0 && npx vitest run
+```
 
-## Join the community
+`android/` and `ios/` are not committed (Continuous Native Generation); `npx expo prebuild` or `npx expo run:*` creates them
+from `app.config.ts`.
 
-Join our community of developers creating universal apps.
+## Run the mock
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```bash
+cd mobile-engineer-kit
+npm test                     # the kit's own tests
+npm run fixtures:oversize    # creates fixtures/oversize.csv (> 10 MiB, git-ignored)
+npm start                    # http://127.0.0.1:8787
+```
+
+The kit is used as supplied; nothing in it is edited. For a physical iPhone on the LAN, start it on all interfaces
+(`HOST=0.0.0.0 npm start`, PowerShell: `$env:HOST='0.0.0.0'; npm start`) and set the base URL in the app's diagnostics panel.
+
+Switch scenarios (or use the buttons in the diagnostics panel):
+
+```bash
+# bash / Git Bash
+curl -X POST http://127.0.0.1:8787/__test/scenario -H 'Content-Type: application/json' -d '{"mode":"lost_ack"}'
+curl http://127.0.0.1:8787/__test/state
+curl -X POST http://127.0.0.1:8787/__test/reset
+```
+
+```powershell
+# Windows PowerShell (plain `curl` is an alias for Invoke-WebRequest there)
+Invoke-RestMethod -Method Post http://127.0.0.1:8787/__test/scenario -ContentType 'application/json' -Body '{"mode":"lost_ack"}'
+Invoke-RestMethod http://127.0.0.1:8787/__test/state
+Invoke-RestMethod -Method Post http://127.0.0.1:8787/__test/reset
+```
+
+## Run the app
+
+```bash
+cd app
+npx expo start -c            # Expo Go (press s to switch), or a development build
+npx expo run:android         # development build on a device/emulator
+```
+
+- **Android emulator / USB device:** `adb reverse tcp:8787 tcp:8787`, then the default `http://127.0.0.1:8787` works.
+- **iOS simulator:** reaches the host loopback directly.
+- **Physical iPhone:** LAN address of the computer in the diagnostics panel (see above); allow Local Network access.
+- Other base URL at build time: `EXPO_PUBLIC_MOCK_URL=http://192.168.0.10:8787`.
+
+Fixtures onto a device:
+
+```bash
+adb push mobile-engineer-kit/fixtures/statement.csv mobile-engineer-kit/fixtures/statement.pdf \
+         mobile-engineer-kit/fixtures/spoofed.pdf mobile-engineer-kit/fixtures/oversize.csv /sdcard/Download/
+```
+
+iOS simulator: drag the files onto the simulator window (they land in Files). iPhone: AirDrop or iCloud Drive.
+
+Windows note: if a native Android build fails with `Filename longer than 260 characters` from `ninja`, the Android SDK's
+CMake 3.22.1 ships a ninja that is not long-path aware; replace `<sdk>/cmake/3.22.1/bin/ninja.exe` with ninja ≥ 1.12.
+
+### Diagnostics
+
+On in development builds; in a release build only with `EXPO_PUBLIC_DIAGNOSTICS=1` at build time. Shows scenario buttons,
+mock `stats` from `/__test/state`, mock reset, the local operation (`phase · status rN`), the last response the revision
+guard ignored, and the base URL. A release export without the flag contains none of this code (checked in CI).
+
+## Tests
+
+```bash
+cd app
+npx vitest run                     # unit + integration, ~30 s (the mock's ready/deleted transitions take ≥ 1 s)
+npx vitest run --coverage          # gate on src/core: lines 95 %, branches 85 %
+npx vitest run --sequence.shuffle  # order independence
+```
+
+Integration tests import `mobile-engineer-kit/mock-server.mjs` directly and start a fresh `createMockServer` per test on
+port 0 with a temporary state file, so they never touch a running CLI mock on 8787 or `.mock-state.json`. Assertions use
+exact deltas of the mock's `stats`. Covered:
+
+| Requirement | Test |
+|---|---|
+| idempotency key persisted before the POST, same key in the header | `core.test.ts` › upload |
+| `lost_ack` in-session → recovered by key, `newJobs = 1` | `core.test.ts` › upload |
+| `lost_ack` + kill + relaunch → no second POST, `createRequests = 1, newJobs = 1` | `core.test.ts` › upload |
+| by-key 404 → "Retry upload" with the same key and copy | `core.test.ts` › upload |
+| `stale_status` → stays `ready/3`, `ignored processing/2`, also after relaunch | `core.test.ts` › stale_status |
+| duplicate `queued/1` after ready does not roll back | `core.test.ts` › guard |
+| `delete_failure` → 503 is not "deleted"; retry with the same key → `deleted/5` | `core.test.ts` › delete |
+| relaunch mid-delete (landed / not landed / offline) | `core.test.ts` › relaunch during delete |
+| late `ready/3` after deletion changes nothing | `core.test.ts` › delete |
+| `spoofed.pdf`, `oversize.csv`, CRLF, BOM never POSTed (`createRequests` unchanged) | `privacy.test.ts` |
+| logs contain no file name, merchants, amounts, URIs, keys or bytes | `privacy.test.ts` |
+| sniff identical to the server's rule on all fixtures | `sniff.test.ts` |
+
+Not covered by automated tests: the device-only glue (`src/files/importFile.ts`, `src/transport/rn.ts`, the UI) —
+that is what the scenarios below are for.
+
+CI (`.github/workflows/ci.yml`) additionally checks the kit's checksums, lint/typecheck, SDK consistency, that no
+analytics/crash SDK is in the dependency tree, that the release bundle contains no fixture data or diagnostics, the Android
+release APK's permissions, and the iOS Info.plist.
+
+## Scenarios (video script, per platform)
+
+1. `reset` → pick `statement.csv` → Upload → *Waiting in the queue… → Analysing… → 151.99 AUD / month* → Details.
+2. `lost_ack` → pick `statement.pdf` → Upload → kill the app during *Uploading…* / *Upload not confirmed* → relaunch →
+   ready. Diagnostics: `newJobs=1`.
+3. happy import → ready → `stale_status` → Refresh status ×2 → stays ready; diagnostics shows `ignored processing r2`.
+4. `delete_failure` → Delete → *Deletion not confirmed* → `happy` → Retry deletion → *Deleting…* →
+   *Data deleted from the server*.
+5. `spoofed.pdf` and `oversize.csv` → rejected with a reason; `createRequests` unchanged.
+
+See also [RELEASE_NOTE.md](RELEASE_NOTE.md) and [SELF_REVIEW.md](SELF_REVIEW.md).
