@@ -5,10 +5,10 @@ import { errorCodes, isErrorWithCode, keepLocalCopy, pick, types } from '@react-
 import * as Crypto from 'expo-crypto';
 import { Directory, File, Paths } from 'expo-file-system';
 
-import { extensionMatches, type Format, SNIFF_BYTES, sniff, tooLarge } from './sniff';
+import { type Format, type RejectReason, SNIFF_BYTES, tooLarge, validate } from './sniff';
 
+export type { RejectReason };
 export type PickedFile = { opId: string; copyUri: string; format: Format; sizeBytes: number; displayName: string };
-export type RejectReason = 'too_large' | 'unsupported' | 'extension_mismatch' | 'copy_failed';
 export type PickResult =
   | { kind: 'ok'; file: PickedFile }
   | { kind: 'cancelled' }
@@ -56,7 +56,7 @@ export async function pickAndCopy(): Promise<PickResult> {
 
     const sizeBytes = file.size;
     if (sizeBytes == null) return reject('copy_failed');
-    if (tooLarge(sizeBytes)) return reject('too_large');
+    if (tooLarge(sizeBytes)) return reject('too_large'); // don't even open it
 
     const handle = file.open();
     let head: Uint8Array;
@@ -66,9 +66,8 @@ export async function pickAndCopy(): Promise<PickResult> {
       handle.close();
     }
 
-    const format = sniff(head);
-    if (!format) return reject('unsupported');
-    if (!extensionMatches(picked.name, format)) return reject('extension_mismatch');
+    const format = validate(head, sizeBytes, picked.name);
+    if (format !== 'pdf' && format !== 'csv') return reject(format);
 
     return { kind: 'ok', file: { opId, copyUri: file.uri, format, sizeBytes, displayName: picked.name ?? '' } };
   } catch {

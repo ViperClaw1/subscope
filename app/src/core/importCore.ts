@@ -1,3 +1,4 @@
+import { type Log, redact } from '../log';
 import { applyView } from './guard';
 import type { Storage, Transport } from './ports';
 import type { ImportOp, JobView } from './types';
@@ -18,6 +19,7 @@ type Deps = {
   uuid: () => string;
   deleteCopy: (uri: string) => void;
   sleep?: (ms: number) => Promise<void>;
+  log?: Log;
 };
 
 const POLL_START_MS = 400;
@@ -41,13 +43,22 @@ export class ImportCore {
     return () => void this.listeners.delete(fn);
   };
 
+  private log(event: string, op: ImportOp | null, notice: Notice | null) {
+    this.d.log?.(
+      event,
+      redact({ ...op, notice, ignoredStatus: op?.ignored?.status, ignoredRevision: op?.ignored?.revision }),
+    );
+  }
+
   private setNotice(notice: Notice | null) {
+    this.log('notice', this.snap.op, notice);
     this.snap = { ...this.snap, notice };
     this.listeners.forEach((l) => l());
   }
 
   /** Updates memory, then persists. Saves are chained so they land in order. Throws if the save fails. */
   private async commit(op: ImportOp | null, notice: Notice | null = this.snap.notice) {
+    this.log('state', op, notice);
     this.snap = { op, notice };
     this.listeners.forEach((l) => l());
     this.saving = this.saving.catch(() => {}).then(() => this.d.storage.save(op));

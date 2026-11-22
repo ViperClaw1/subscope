@@ -12,15 +12,15 @@ const parse = (status: number, text: string): Res => {
   }
 };
 
-export function createRnTransport(baseUrl: string): Transport {
+export function createRnTransport(base: () => string): Transport {
   const call = async (method: string, path: string, headers?: Record<string, string>) => {
-    const r = await fetch(`${baseUrl}${path}`, { method, headers });
+    const r = await fetch(`${base()}${path}`, { method, headers });
     return parse(r.status, await r.text());
   };
 
   return {
     async upload({ idemKey, copyUri, format }) {
-      const r = await uploadAsync(`${baseUrl}/imports`, copyUri, {
+      const r = await uploadAsync(`${base()}/imports`, copyUri, {
         httpMethod: 'POST',
         uploadType: FileSystemUploadType.BINARY_CONTENT,
         sessionType: FileSystemSessionType.FOREGROUND, // fail fast on a dropped connection

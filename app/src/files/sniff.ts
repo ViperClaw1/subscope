@@ -27,3 +27,13 @@ export const tooLarge = (sizeBytes: number) => sizeBytes > MAX_BYTES;
 // Conservative: content decides the format, and the name's extension must agree with it.
 export const extensionMatches = (name: string | null, format: Format) =>
   (name ?? '').toLowerCase().endsWith(`.${format}`);
+
+export type RejectReason = 'too_large' | 'unsupported' | 'extension_mismatch' | 'copy_failed';
+
+/** Every check that must pass before anything is sent. Pure: shared by the app and the tests. */
+export function validate(head: Uint8Array, sizeBytes: number, name: string | null): Format | RejectReason {
+  if (tooLarge(sizeBytes)) return 'too_large';
+  const format = sniff(head);
+  if (!format) return 'unsupported';
+  return extensionMatches(name, format) ? format : 'extension_mismatch';
+}
