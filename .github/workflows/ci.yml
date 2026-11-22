@@ -149,7 +149,9 @@ jobs:
           cat perms.txt
           ALLOWED='^(android\.permission\.(INTERNET|ACCESS_NETWORK_STATE)|dev\.klotsman\.Subscope\.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION)$'
           if grep -vE "$ALLOWED" perms.txt; then echo "::error::unexpected permissions"; exit 1; fi
-          "$AAPT2" dump xmltree --file AndroidManifest.xml "$APK" | grep -q 'usesCleartextTraffic.*=(type 0x12)0xffffffff'
+          # aapt2 prints `...usesCleartextTraffic(0x010104ec)=true` (old aapt: `=(type 0x12)0xffffffff`)
+          "$AAPT2" dump xmltree --file AndroidManifest.xml "$APK" | grep -E 'usesCleartextTraffic\([^)]*\)=(true|\(type 0x12\)0xffffffff)' \
+            || { echo "::error::usesCleartextTraffic=true missing in release manifest"; exit 1; }
       - uses: actions/upload-artifact@v4
         with:
           name: subscope-android-release-apk
