@@ -11,6 +11,7 @@ server. Uploads survive lost responses and app restarts without creating duplica
 | Platform | Requested | Why |
 |---|---|---|
 | Android | `android.permission.INTERNET` | talk to the API |
+| Android | `android.permission.ACCESS_NETWORK_STATE` | added by React Native / Expo networking to check connectivity; a "normal" permission, granted at install, never prompted. Not blocked: libraries that check connectivity would throw `SecurityException` without it |
 | Android | `dev.klotsman.Subscope.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` | added by AndroidX core; app-internal signature permission, never shown to the user |
 | iOS | `NSLocalNetworkUsageDescription` | only needed when the API is reached over the LAN (physical iPhone + local mock) |
 

@@ -147,7 +147,7 @@ jobs:
           APK=android/app/build/outputs/apk/release/app-release.apk
           "$AAPT2" dump permissions "$APK" | grep -oE "name='[^']+'" | cut -d"'" -f2 | sort > perms.txt
           cat perms.txt
-          ALLOWED='^(android\.permission\.INTERNET|dev\.klotsman\.Subscope\.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION)$'
+          ALLOWED='^(android\.permission\.(INTERNET|ACCESS_NETWORK_STATE)|dev\.klotsman\.Subscope\.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION)$'
           if grep -vE "$ALLOWED" perms.txt; then echo "::error::unexpected permissions"; exit 1; fi
           "$AAPT2" dump xmltree --file AndroidManifest.xml "$APK" | grep -q 'usesCleartextTraffic.*=(type 0x12)0xffffffff'
       - uses: actions/upload-artifact@v4
