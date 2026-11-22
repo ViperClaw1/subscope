@@ -59,8 +59,8 @@ attempt leaked `__test/scenario` into the release bundle; CI now greps for it).
 - **Base URL override** lives in memory only.
 - **One operation at a time.** A new import is allowed once the previous one is ready, failed or deleted; starting one
   while a previous result is still on the server does not delete it.
-- **No Maestro flow yet.** The optional `e2e-android` CI job references `app/e2e/`, which does not exist; the system file
-  picker is unreliable to drive in CI, so the device scenarios were done by hand.
+- **No automated end-to-end test on an emulator.** The system file picker is unreliable to drive in CI (Maestro), so the
+  device scenarios are done by hand.
 
 ## What I would check next
 
