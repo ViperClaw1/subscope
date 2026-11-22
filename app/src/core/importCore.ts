@@ -167,13 +167,17 @@ export class ImportCore {
       case 'tracking':
         await this.refresh();
         return this.startPolling();
-      case 'deleteRequested': {
-        const view = await this.fetchJob(op.opId);
-        if (view?.status === 'deleting') return this.startPolling();
-        if (view && view.status !== 'deleted') this.setNotice('delete_unconfirmed'); // DELETE never landed
-        return;
-      }
+      case 'deleteRequested':
+        return this.checkDelete(op.opId);
     }
+  }
+
+  /** Where does a requested delete stand? Used on relaunch and by "Refresh status". */
+  private async checkDelete(opId: string) {
+    const view = await this.fetchJob(opId);
+    if (!view || !this.current(opId)) return;
+    if (view.status === 'deleting') return this.startPolling();
+    if (view.status !== 'deleted') this.setNotice('delete_unconfirmed'); // DELETE never landed
   }
 
   // ---------- status ----------
@@ -195,7 +199,8 @@ export class ImportCore {
   /** "Refresh status" button and AppState → active. Works after polling stopped at ready. */
   async refresh() {
     const op = this.snap.op;
-    if (op && (op.phase === 'tracking' || op.phase === 'deleteRequested')) await this.fetchJob(op.opId);
+    if (op?.phase === 'tracking') await this.fetchJob(op.opId);
+    if (op?.phase === 'deleteRequested') await this.checkDelete(op.opId);
   }
 
   private needsPolling(op: ImportOp | null) {

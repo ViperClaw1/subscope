@@ -186,6 +186,29 @@ describe('relaunch during delete', () => {
     expect(b.getSnapshot()).toMatchObject({ notice: 'delete_unconfirmed', op: { phase: 'deleteRequested' } });
   });
 
+  it('relaunch offline during a failed delete → "Refresh status" later offers "Retry delete"', async () => {
+    const storage = memoryStorage();
+    await mock.scenario('delete_failure');
+    await (await readyCore(storage)).requestDelete();
+    await mock.scenario('happy');
+
+    const { t } = nodeTransport(mock.base);
+    let down = true;
+    const flaky: Transport = { ...t, getJob: (id) => (down ? Promise.reject(new Error('offline')) : t.getJob(id)) };
+    const b = makeCore(storage.s, flaky);
+    await b.resume();
+    expect(b.getSnapshot().notice).toBe('network');
+
+    down = false;
+    await b.refresh(); // server still says ready: the DELETE never landed
+    expect(b.getSnapshot()).toMatchObject({ notice: 'delete_unconfirmed', op: { phase: 'deleteRequested' } });
+
+    const key = storage.peek()!.deleteKey;
+    await b.retryDelete();
+    await waitFor(() => b.getSnapshot().op?.phase === 'deleted');
+    expect(storage.peek()!.deleteKey).toBe(key);
+  });
+
   it('DELETE landed (202) → relaunch polls to deleted/5', async () => {
     const storage = memoryStorage();
     const a = await readyCore(storage);
