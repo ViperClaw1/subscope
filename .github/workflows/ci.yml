@@ -133,10 +133,11 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: app/package-lock.json
-      - uses: actions/setup-java@v4
-        with: { distribution: temurin, java-version: 17, cache: gradle }
+      - uses: actions/setup-java@v5
+        with: { distribution: temurin, java-version: 17 }   # no `cache: gradle`: android/ doesn't exist until prebuild
       - run: npm ci
       - run: npx expo prebuild --platform android --no-install --clean
+      - uses: gradle/actions/setup-gradle@v4                   # Gradle cache, set up once the wrapper exists
       - name: assembleRelease (debug keystore from Expo template)
         working-directory: app/android
         run: ./gradlew assembleRelease --no-daemon
