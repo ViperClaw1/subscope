@@ -64,9 +64,13 @@ jobs:
         run: |
           for p in android ios .expo; do test ! -e "$p" || { echo "::error::$p committed"; exit 1; }; done
           if git -C .. ls-files | grep -E '(\.mock-state\.json|fixtures/oversize\.csv|\.env)$'; then exit 1; fi
-      - name: Secret scan
-        uses: gitleaks/gitleaks-action@v2
-        env: { GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
+      # CLI over the full history: gitleaks-action scans `<before>^..<after>`, which fails when the push contains
+      # the root commit (no parent). The CLI also needs no GITLEAKS_LICENSE for org repos.
+      - name: Secret scan (full history)
+        working-directory: .
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz | tar -xz gitleaks
+          ./gitleaks git --redact --verbose --exit-code 1 .
 
   # ---------- Шаги 2–5: unit + integration против createMockServer ----------
   test:
