@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { MAX_BYTES, sniff, tooLarge } from '../src/files/sniff';
+import { extensionMatches, MAX_BYTES, sniff, tooLarge } from '../src/files/sniff';
 
 const fixture = (name: string) =>
   new Uint8Array(readFileSync(join(__dirname, '../../mobile-engineer-kit/fixtures', name)));
@@ -33,6 +33,16 @@ describe('sniff mirrors the server format() rule', () => {
     expect(sniff(text('%PDF'))).toBeNull();
     expect(sniff(text('date,description,amount'))).toBeNull(); // no newline
     expect(sniff(text('Date,description,amount\n'))).toBeNull();
+  });
+});
+
+describe('extensionMatches', () => {
+  it('requires the extension to agree with the sniffed format', () => {
+    expect(extensionMatches('statement.CSV', 'csv')).toBe(true);
+    expect(extensionMatches('statement.pdf', 'pdf')).toBe(true);
+    expect(extensionMatches('statement.csv', 'pdf')).toBe(false); // real PDF named .csv
+    expect(extensionMatches('statement.txt', 'csv')).toBe(false);
+    expect(extensionMatches(null, 'csv')).toBe(false);
   });
 });
 

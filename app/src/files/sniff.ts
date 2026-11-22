@@ -23,3 +23,7 @@ export function sniff(head: Uint8Array): Format | null {
 }
 
 export const tooLarge = (sizeBytes: number) => sizeBytes > MAX_BYTES;
+
+// Conservative: content decides the format, and the name's extension must agree with it.
+export const extensionMatches = (name: string | null, format: Format) =>
+  (name ?? '').toLowerCase().endsWith(`.${format}`);
