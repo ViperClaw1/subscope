@@ -39,5 +39,15 @@ yarn-error.*
 example
 
 # generated native folders
-/ios
-/android
+/app/ios
+/app/android
+
+# skills
+.agents
+.claude
+skills-lock.json
+
+# test outputs
+app/coverage/
+app/reports/
+.env

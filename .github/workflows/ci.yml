@@ -1,0 +1,231 @@
+# .github/workflows/ci.yml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      e2e:
+        description: Run Android emulator e2e (Maestro)
+        type: boolean
+        default: false
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CI: true
+  EXPO_NO_TELEMETRY: 1
+
+jobs:
+  # ---------- Шаг 0: kit не изменён и сам проходит свои тесты ----------
+  kit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }          # минимум из README kit
+      - name: Kit checksums unchanged
+        run: node app/scripts/verify-kit.mjs
+      - name: Kit self-tests
+        working-directory: mobile-engineer-kit
+        run: npm test
+      - name: Oversize fixture generator
+        working-directory: mobile-engineer-kit
+        run: |
+          npm run fixtures:oversize
+          test "$(stat -c %s fixtures/oversize.csv)" -gt 10485760
+
+  # ---------- Шаг 1: статические проверки ----------
+  static:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: app } }
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }             # для gitleaks по истории
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Lint (no-console, no-floating-promises, max-warnings 0)
+        run: npx eslint . --max-warnings 0
+      - name: Expo SDK consistency
+        run: |
+          npx expo install --check
+          npx expo-doctor
+      - name: No analytics / crash SDKs in dependency tree
+        run: npm run check:deps
+      - name: No committed native dirs / mock state / oversize
+        run: |
+          for p in android ios .expo; do test ! -e "$p" || { echo "::error::$p committed"; exit 1; }; done
+          if git -C .. ls-files | grep -E '(\.mock-state\.json|fixtures/oversize\.csv|\.env)$'; then exit 1; fi
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env: { GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
+
+  # ---------- Шаги 2–5: unit + integration против createMockServer ----------
+  test:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: app } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      - name: Tests + coverage gate on src/core
+        run: npx vitest run --coverage --reporter=default --reporter=junit --outputFile.junit=reports/junit.xml
+      - name: Reproducibility (shuffled second run)
+        run: npx vitest run --sequence.shuffle
+      - name: Tests did not touch kit state / tree
+        run: |
+          test ! -e ../mobile-engineer-kit/.mock-state.json
+          DIRTY=$(git -C .. status --porcelain --untracked-files=all | grep -vE '^\?\? app/(coverage|reports)/' || true)
+          if [ -n "$DIRTY" ]; then echo "$DIRTY"; exit 1; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-reports
+          path: |
+            app/reports/
+            app/coverage/
+
+  # ---------- Шаги 2–3: приватность итогового JS-бандла ----------
+  bundle-privacy:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: app } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      - name: Export plain JS bundles
+        run: npx expo export --platform android --platform ios --no-bytecode --output-dir dist
+        env: { EXPO_PUBLIC_DIAGNOSTICS: '0' }
+      - name: Bundle contains no fixture data / diagnostics in release
+        run: |
+          if grep -rlE 'StreamBeam|BrightGrid' dist; then echo "::error::fixture data in bundle"; exit 1; fi
+          if grep -rl '__test/scenario' dist; then echo "::error::diagnostics in release bundle"; exit 1; fi
+
+  # ---------- Шаги 1, 7: нативная сборка Android ----------
+  android:
+    needs: [static, test]
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: app } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17, cache: gradle }
+      - run: npm ci
+      - run: npx expo prebuild --platform android --no-install --clean
+      - name: assembleRelease (debug keystore from Expo template)
+        working-directory: app/android
+        run: ./gradlew assembleRelease --no-daemon
+      - name: Permissions allowlist + cleartext flag
+        run: |
+          AAPT2="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/aapt2"
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          "$AAPT2" dump permissions "$APK" | grep -oE "name='[^']+'" | cut -d"'" -f2 | sort > perms.txt
+          cat perms.txt
+          ALLOWED='^(android\.permission\.INTERNET|dev\.klotsman\.Subscope\.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION)$'
+          if grep -vE "$ALLOWED" perms.txt; then echo "::error::unexpected permissions"; exit 1; fi
+          "$AAPT2" dump xmltree --file AndroidManifest.xml "$APK" | grep -q 'usesCleartextTraffic.*=(type 0x12)0xffffffff'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: subscope-android-release-apk
+          path: app/android/app/build/outputs/apk/release/app-release.apk
+
+  # ---------- Шаги 1, 7: нативная сборка iOS (simulator, без подписи) ----------
+  ios:
+    needs: [static, test]
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'ios')
+    runs-on: macos-latest
+    defaults: { run: { working-directory: app } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      - run: npx expo prebuild --platform ios --no-install --clean
+      - run: pod install
+        working-directory: app/ios
+      - name: 'Info.plist: ATS local networking, no stray usage descriptions'
+        run: |
+          PLIST=ios/Subscope/Info.plist
+          test "$(/usr/libexec/PlistBuddy -c 'Print :NSAppTransportSecurity:NSAllowsLocalNetworking' $PLIST)" = true
+          if /usr/libexec/PlistBuddy -c 'Print :NSAppTransportSecurity:NSAllowsArbitraryLoads' $PLIST 2>/dev/null | grep -q true; then exit 1; fi
+          if plutil -p $PLIST | grep -E 'NS(Camera|PhotoLibrary|Microphone|Location[A-Za-z]*|Contacts)UsageDescription'; then exit 1; fi
+      - name: xcodebuild Release for simulator
+        working-directory: app/ios
+        run: |
+          set -o pipefail
+          xcodebuild -workspace Subscope.xcworkspace -scheme Subscope \
+            -configuration Release -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO build | tail -50
+      - run: cd ios/build/Build/Products/Release-iphonesimulator && zip -qr ../../../../../subscope-ios-sim.zip Subscope.app
+      - uses: actions/upload-artifact@v4
+        with: { name: subscope-ios-simulator-app, path: app/subscope-ios-sim.zip }
+
+  # ---------- Шаг 7: README / release note / self-review на месте ----------
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc }
+      - run: node app/scripts/check-docs.mjs
+
+  # ---------- Шаг 7 (опционально): e2e на эмуляторе ----------
+  e2e-android:
+    if: github.event_name == 'workflow_dispatch' && inputs.e2e
+    needs: android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - uses: actions/download-artifact@v4
+        with: { name: subscope-android-release-apk }
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - run: curl -fsSL https://get.maestro.mobile.dev | bash
+      - name: Start mock
+        working-directory: mobile-engineer-kit
+        run: |
+          npm start > mock.log 2>&1 &
+          for i in $(seq 30); do curl -fs http://127.0.0.1:8787/health && break; sleep 1; done
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          script: |
+            adb reverse tcp:8787 tcp:8787
+            adb push mobile-engineer-kit/fixtures/statement.csv /sdcard/Download/
+            adb install app-release.apk
+            $HOME/.maestro/bin/maestro test app/e2e/
