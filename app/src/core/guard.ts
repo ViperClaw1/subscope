@@ -3,7 +3,7 @@ import type { ImportOp, JobView } from './types';
 /**
  * Revision guard. Returns op unchanged (same reference) when nothing should change.
  *  - responses for another job are dropped
- *  - `deleted` is terminal (the op then is the tombstone {jobId, revision: 5})
+ *  - `deleted` (tombstone {jobId, revision: 5}) and `gone` (delete got 404) are terminal
  *  - after a delete request only `deleting` / `deleted` may apply
  *  - otherwise only a strictly newer revision applies
  * Strictly older or wrong-phase responses are recorded in `ignored` for diagnostics;
@@ -11,7 +11,7 @@ import type { ImportOp, JobView } from './types';
  */
 export function applyView(op: ImportOp, v: JobView): ImportOp {
   if (op.jobId && v.jobId !== op.jobId) return op;
-  if (op.phase === 'deleted') return op;
+  if (op.phase === 'deleted' || op.phase === 'gone') return op;
 
   const ignore = (): ImportOp => ({ ...op, ignored: { status: v.status, revision: v.revision } });
   if (op.phase === 'deleteRequested' && v.status !== 'deleting' && v.status !== 'deleted') {

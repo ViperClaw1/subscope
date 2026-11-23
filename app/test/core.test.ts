@@ -209,7 +209,7 @@ describe('relaunch during delete', () => {
     expect(storage.peek()!.deleteKey).toBe(key);
   });
 
-  it('job gone on the server (404) → deleted, both on relaunch and on "Retry delete"', async () => {
+  it('job gone on the server (404) → gone, not "deleted", both on relaunch and on "Retry delete"', async () => {
     for (const via of ['resume', 'retry'] as const) {
       const storage = memoryStorage();
       await mock.scenario('delete_failure');
@@ -219,7 +219,9 @@ describe('relaunch during delete', () => {
 
       const b = via === 'resume' ? makeCore(storage.s, nodeTransport(mock.base).t) : a;
       await (via === 'resume' ? b.resume() : b.retryDelete());
-      expect(b.getSnapshot()).toMatchObject({ notice: null, op: { phase: 'deleted', revision: 5 } });
+      expect(b.getSnapshot()).toMatchObject({ notice: null, op: { phase: 'gone' } });
+      expect(storage.peek()).toMatchObject({ phase: 'gone' });
+      expect(storage.peek()!.status).not.toBe('deleted');
       expect(storage.peek()!.result).toBeUndefined();
     }
   });
@@ -345,6 +347,10 @@ describe('guard', () => {
   it('deleted is terminal', () => {
     const gone = { ...ready, phase: 'deleted' as const, status: 'deleted' as const, revision: 5 };
     expect(applyView(gone, { jobId: 'job-demo-001', status: 'deleting', revision: 6 })).toBe(gone);
+  });
+  it('gone (delete got 404) is terminal: a late ready/3 is dropped', () => {
+    const gone = { ...ready, phase: 'gone' as const, status: 'deleting' as const, revision: 2 };
+    expect(applyView(gone, { jobId: 'job-demo-001', status: 'ready', revision: 3 })).toBe(gone);
   });
 });
 

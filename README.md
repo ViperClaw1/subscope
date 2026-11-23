@@ -1,5 +1,7 @@
 # Subscope
 
+[![CI](https://github.com/ViperClaw1/subscope/actions/workflows/ci.yml/badge.svg)](https://github.com/ViperClaw1/subscope/actions/workflows/ci.yml?query=branch%3Amain)
+
 Mobile client for the statement-import assignment: pick a PDF/CSV bank statement, upload it to the local mock API,
 show the recurring payments it finds, and delete the data from the server again. Expo SDK 58 / React Native 0.88,
 Android and iOS.
@@ -19,8 +21,20 @@ app/                   the Expo app
 ## Status
 
 - **Android: verified** — Xiaomi POCO C71, Android 15, development build, all 5 scenarios.
-- **iOS: verified in Expo Go** — iPhone 13, iOS 19, all 5 scenarios (all native modules the app uses are bundled in
-  Expo Go). A native iOS build is compiled by CI (`ios` job, simulator, unsigned) but has not been launched.
+- **iOS: not verified natively** — the 5 scenarios were run in Expo Go only (iPhone 13, iOS 26). The native Release
+  build is compiled in CI and launched on an iOS simulator (`ios` job, artifact `ios-simulator-launch`: video + screenshot);
+  the scenarios were not run on it.
+
+Test results: the CI badge above links the runs on `main` (kit, lint/typecheck, unit + integration tests, bundle privacy,
+Android release APK, iOS build + simulator launch, docs).
+
+### Videos
+
+| Platform | Scenario | Link |
+| --- | --- | --- |
+| Android | 1–5 (happy, lost_ack + relaunch, stale_status, delete_failure, rejects) | _to be added_ |
+| iOS native | 1–5 | _to be added_ |
+| iOS simulator | native launch (CI artifact `ios-simulator-launch`) | see the latest `ios` job |
 
 ## Clean checkout
 
@@ -86,6 +100,19 @@ adb push mobile-engineer-kit/fixtures/statement.csv mobile-engineer-kit/fixtures
 ```
 
 iOS simulator: drag the files onto the simulator window (they land in Files). iPhone: AirDrop or iCloud Drive.
+
+### iOS on a device without a Mac
+
+The `ios` CI job also builds an unsigned Release `.ipa` for devices (artifact `subscope-ios-device-ipa`), with the
+diagnostics panel on. It is a test build only; the store build has no diagnostics.
+
+1. Run CI manually with the PC's LAN address baked in, so a relaunch reaches the mock without re-entering it:
+   `gh workflow run CI -f mock_url=http://<PC LAN IP>:8787` (without it, set the URL in diagnostics after each launch).
+2. Sign and install with [Sideloadly](https://sideloadly.io) and a free Apple ID (a secondary one is fine; the
+   certificate lasts 7 days). iTunes from apple.com must be installed on Windows. On the iPhone enable
+   Settings → Privacy & Security → Developer Mode.
+3. Start the mock on all interfaces (`$env:HOST='0.0.0.0'; npm start`), allow Node through Windows Firewall on port 8787,
+   and allow Local Network access when the app asks.
 
 Windows note: if a native Android build fails with `Filename longer than 260 characters` from `ninja`, the Android SDK's
 CMake 3.22.1 ships a ninja that is not long-path aware; replace `<sdk>/cmake/3.22.1/bin/ninja.exe` with ninja ≥ 1.12.

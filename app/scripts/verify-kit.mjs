@@ -1,5 +1,6 @@
-// Proves mobile-engineer-kit/ is byte-identical to the supplied zip.
-// Reference hashes taken from mobile-engineer-kit.zip (sha256 6edb564c…f7326) on 2026-11-19.
+// Proves mobile-engineer-kit/ is byte-identical to the supplied kit.
+// Reference: per-file sha256 of the files extracted from the supplied zip on 2026-11-19. The zip's own hash is not used:
+// it depends on how the archive was packed, the contents do not.
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';

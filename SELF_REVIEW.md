@@ -55,15 +55,32 @@ attempt leaked `__test/scenario` into the release bundle; CI now greps for it).
   for the OS to evict.
 - **Coverage gate is lines 95 % / branches 85 %** (currently ~98 % / ~86 %). The untested branches are the "operation was
   replaced while this request was in flight" guards after each await; one test covers the scenario end to end.
-- **404 during a delete counts as deleted** (the job no longer exists, so nothing is left to remove). Without this a reset
-  mock left the app stuck: no new import is allowed while a delete is pending.
+- **404 during a delete ends in its own terminal state, `gone`** ("Import no longer on the server … Deletion was not
+  confirmed"), never "deleted": only `deleted/5` is a confirmation. Without a terminal state a reset mock left the app
+  stuck, because no new import is allowed while a delete is pending.
 - **Base URL override** lives in memory only.
 - **One operation at a time.** A new import is allowed once the previous one is ready, failed or deleted; starting one
   while a previous result is still on the server does not delete it.
 - **No automated end-to-end test on an emulator.** The system file picker is unreliable to drive in CI (Maestro), so the
   device scenarios are done by hand.
 
+## Use of AI
+
+I used Claude Code (an AI coding assistant; `AGENTS.md` holds its project instructions) for drafting code, tests, the CI
+workflow and these documents. What I checked myself rather than taking on trust:
+
+- Read every change to `src/core/` and `src/files/sniff.ts` against the kit's README and `mock-server.mjs`, the source of
+  truth for statuses, revisions and the format rule.
+- The integration tests run against the kit's own `createMockServer` and assert exact `stats` deltas
+  (`createRequests`, `newJobs`), so a passing test means the mock really saw one POST, not that a stub agreed.
+- Ran the scenarios by hand on a device (Android development build; iOS so far in Expo Go only, see README › Status)
+  and watched the diagnostics panel's `stats` and ignored-response line.
+- CI failures were reproduced from the logs and fixed one at a time (see the `fix(CI)` commits), not silenced.
+- Corrected AI mistakes found on review: e.g. a 404 during delete was first shown as "deleted", and the README first
+  marked an Expo Go run as a verified iOS build.
+
 ## What I would check next
 
 - The full scenario list on both platforms with the largest system font and a small screen (iPhone SE / small AVD).
-- The first real run of the CI workflow (the `ios` job in particular: workspace/scheme names derive from `name: 'Subscope'`).
+- The 5 scenarios on a native iOS build (sideloaded CI `.ipa`, README › iOS on a device without a Mac), including
+  whether ATS `NSAllowsLocalNetworking` lets requests to a bare LAN IP through.

@@ -55,5 +55,6 @@ JS-only changes (UI, core logic, texts) can ship via `eas update`.
   copies it). It is deleted immediately and never uploaded.
 - CSV files with Windows line endings (CRLF) or a UTF-8 BOM are rejected — the server rejects them too.
 - A delete (or status check during a delete) that returns 404 — the job no longer exists on the server, e.g. after a mock
-  reset — is shown as deleted: nothing is stored for it any more. Status checks and deletes give up after 15 s.
+  reset — ends in *Import no longer on the server*: not reported as deleted, because the server never confirmed a
+  deletion, but nothing is stored for it any more. Status checks and deletes give up after 15 s.
 - The base URL override in diagnostics is not persisted across restarts.

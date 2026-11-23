@@ -13,7 +13,8 @@ export type JobView = {
   items?: Item[];
 };
 
-export type Phase = 'uploading' | 'unknown' | 'tracking' | 'deleteRequested' | 'deleted' | 'failed';
+/** `gone`: a delete got 404 — the server has no record of the job, but never confirmed a deletion. */
+export type Phase = 'uploading' | 'unknown' | 'tracking' | 'deleteRequested' | 'deleted' | 'gone' | 'failed';
 
 /** Persisted before the POST. displayName is deliberately absent: it never leaves memory. */
 export type ImportOp = {

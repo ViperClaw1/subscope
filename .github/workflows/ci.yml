@@ -6,6 +6,11 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      mock_url:
+        description: 'Mock base URL baked into the device test IPA, e.g. http://192.168.0.10:8787 (optional)'
+        required: false
+        default: ''
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -191,6 +196,54 @@ jobs:
       - run: cd ios/build/Build/Products/Release-iphonesimulator && zip -qr ../../../../../subscope-ios-sim.zip Subscope.app
       - uses: actions/upload-artifact@v4
         with: { name: subscope-ios-simulator-app, path: app/subscope-ios-sim.zip }
+
+      # Proof of a native launch: install the Release build on a simulator, record it, fail if the app died.
+      - name: Launch on iOS simulator (video + screenshot)
+        working-directory: app/ios
+        run: |
+          UDID=$(xcrun simctl list devices available -j | jq -r '[.devices[][] | select(.name | startswith("iPhone"))][0].udid')
+          echo "simulator: $UDID"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl io "$UDID" recordVideo --codec=h264 --force ios-launch.mp4 &
+          REC=$!
+          sleep 2
+          xcrun simctl install "$UDID" build/Build/Products/Release-iphonesimulator/Subscope.app
+          PID=$(xcrun simctl launch "$UDID" dev.klotsman.Subscope | awk '{print $2}')
+          echo "app pid: $PID"
+          sleep 15
+          xcrun simctl io "$UDID" screenshot ios-launch.png
+          kill -0 "$PID" # the app must still be running
+          kill -INT "$REC"; wait "$REC" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-simulator-launch
+          path: |
+            app/ios/ios-launch.mp4
+            app/ios/ios-launch.png
+
+      # Test build for a real iPhone (sideloaded, README › iOS on a device without a Mac). Diagnostics on;
+      # not the store build — bundle-privacy checks its own export with diagnostics off.
+      - name: xcodebuild Release for device (unsigned, diagnostics on)
+        working-directory: app/ios
+        env:
+          EXPO_PUBLIC_DIAGNOSTICS: '1'
+          MOCK_URL: ${{ inputs.mock_url }}
+        run: |
+          set -o pipefail
+          # an empty value would become the base URL (config.ts uses ??), so only export a real one
+          if [ -n "$MOCK_URL" ]; then export EXPO_PUBLIC_MOCK_URL="$MOCK_URL"; fi
+          rm -rf "${TMPDIR:-/tmp}/metro-cache" # don't reuse transforms inlined without diagnostics
+          xcodebuild -workspace Subscope.xcworkspace -scheme Subscope \
+            -configuration Release -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build-device CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build | tail -50
+          mkdir -p Payload
+          cp -R build-device/Build/Products/Release-iphoneos/Subscope.app Payload/
+          zip -qr Subscope-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with: { name: subscope-ios-device-ipa, path: app/ios/Subscope-unsigned.ipa }
 
   # ---------- Шаг 7: README / release note / self-review на месте ----------
   docs:

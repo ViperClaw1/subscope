@@ -211,6 +211,17 @@ function OpState({ op, notice }: { op: ImportOp | null; notice: Notice | null })
           <Text style={styles.muted}>The statement and its results are gone.</Text>
         </View>
       );
+
+    case 'gone':
+      return (
+        <View style={styles.box}>
+          <Text style={styles.h1}>Import no longer on the server</Text>
+          <Text style={styles.muted}>
+            The server has no record of it (for example after a reset), so there is nothing left to delete. Deletion was
+            not confirmed.
+          </Text>
+        </View>
+      );
   }
 }
 

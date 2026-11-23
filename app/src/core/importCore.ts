@@ -22,9 +22,6 @@ type Deps = {
   log?: Log;
 };
 
-/** 404 while deleting: the server holds nothing for this job any more, which is the goal of the delete. */
-const gone = (jobId: string): JobView => ({ jobId, status: 'deleted', revision: 5 });
-
 const POLL_START_MS = 400;
 const POLL_MAX_MS = 2000;
 
@@ -80,6 +77,14 @@ export class ImportCore {
     const next = applyView(op, view);
     const notice = this.snap.notice === 'network' ? null : this.snap.notice;
     if (next !== op || notice !== this.snap.notice) await this.commit(next, notice);
+  }
+
+  /** 404 while deleting: nothing left on the server, but no `deleted/5` either — so not shown as "deleted". */
+  private async markGone(opId: string) {
+    const op = this.current(opId);
+    if (!op) return;
+    const { result: _drop, ...rest } = op;
+    await this.commit({ ...rest, phase: 'gone' }, null);
   }
 
   private dropCopy(op: ImportOp): ImportOp {
@@ -189,7 +194,7 @@ export class ImportCore {
   /** Where does a requested delete stand? Used on relaunch and by "Refresh status". */
   private async checkDelete(opId: string) {
     const view = await this.fetchJob(opId);
-    if (!this.current(opId)) return;
+    if (this.current(opId)?.phase !== 'deleteRequested') return; // replaced, deleted or gone
     if (!view) {
       // non-200 (offline already shows 'network'): offer the retry instead of sitting on a spinner
       if (this.snap.notice !== 'network') this.setNotice('delete_unconfirmed');
@@ -210,10 +215,13 @@ export class ImportCore {
       if (this.current(opId)) this.setNotice('network');
       return null;
     }
-    const view = res.status === 404 && op.phase === 'deleteRequested' ? gone(op.jobId) : res.body;
-    if ((res.status !== 200 && res.status !== 404) || !view) return null;
-    await this.apply(opId, view);
-    return view;
+    if (res.status === 404 && op.phase === 'deleteRequested') {
+      await this.markGone(opId);
+      return null;
+    }
+    if (res.status !== 200 || !res.body) return null;
+    await this.apply(opId, res.body);
+    return res.body;
   }
 
   /** "Refresh status" button and AppState → active. Works after polling stopped at ready. */
@@ -276,7 +284,7 @@ export class ImportCore {
       return;
     }
     if (!this.current(opId)) return;
-    if (res.status === 404) return this.apply(opId, gone(op.jobId));
+    if (res.status === 404) return this.markGone(opId);
     if (res.status !== 202 || !res.body) return this.setNotice('delete_unconfirmed'); // e.g. 503
     await this.apply(opId, res.body); // deleting/4 — never shown as "deleted"
     this.startPolling();
