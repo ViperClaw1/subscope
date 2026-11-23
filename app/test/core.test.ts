@@ -209,6 +209,21 @@ describe('relaunch during delete', () => {
     expect(storage.peek()!.deleteKey).toBe(key);
   });
 
+  it('job gone on the server (404) → deleted, both on relaunch and on "Retry delete"', async () => {
+    for (const via of ['resume', 'retry'] as const) {
+      const storage = memoryStorage();
+      await mock.scenario('delete_failure');
+      const a = await readyCore(storage);
+      await a.requestDelete();
+      await fetch(`${mock.base}/__test/reset`, { method: 'POST' });
+
+      const b = via === 'resume' ? makeCore(storage.s, nodeTransport(mock.base).t) : a;
+      await (via === 'resume' ? b.resume() : b.retryDelete());
+      expect(b.getSnapshot()).toMatchObject({ notice: null, op: { phase: 'deleted', revision: 5 } });
+      expect(storage.peek()!.result).toBeUndefined();
+    }
+  });
+
   it('DELETE landed (202) → relaunch polls to deleted/5', async () => {
     const storage = memoryStorage();
     const a = await readyCore(storage);

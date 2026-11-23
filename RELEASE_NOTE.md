@@ -54,5 +54,6 @@ JS-only changes (UI, core logic, texts) can ship via `eas update`.
 - A file over 10 MiB is copied into the cache once before it is rejected (the size is known only after the picker
   copies it). It is deleted immediately and never uploaded.
 - CSV files with Windows line endings (CRLF) or a UTF-8 BOM are rejected — the server rejects them too.
-- A delete that returns 404 (job no longer exists on the server, e.g. after a mock reset) stays "Deletion not confirmed".
+- A delete (or status check during a delete) that returns 404 — the job no longer exists on the server, e.g. after a mock
+  reset — is shown as deleted: nothing is stored for it any more. Status checks and deletes give up after 15 s.
 - The base URL override in diagnostics is not persisted across restarts.

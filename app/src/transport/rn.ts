@@ -4,7 +4,9 @@ import { FileSystemSessionType, FileSystemUploadType, uploadAsync } from 'expo-f
 import type { Res, Transport } from '../core/ports';
 import type { JobView } from '../core/types';
 
-const parse = (status: number, text: string): Res => {
+const TIMEOUT_MS = 15_000;
+
+const parse =(status: number, text: string): Res => {
   try {
     return { status, body: JSON.parse(text) as JobView };
   } catch {
@@ -14,8 +16,15 @@ const parse = (status: number, text: string): Res => {
 
 export function createRnTransport(base: () => string): Transport {
   const call = async (method: string, path: string, headers?: Record<string, string>) => {
-    const r = await fetch(`${base()}${path}`, { method, headers });
-    return parse(r.status, await r.text());
+    // RN's Android fetch has no read timeout: a request that never gets an answer would hang the UI forever.
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), TIMEOUT_MS);
+    try {
+      const r = await fetch(`${base()}${path}`, { method, headers, signal: ctl.signal });
+      return parse(r.status, await r.text());
+    } finally {
+      clearTimeout(t);
+    }
   };
 
   return {

@@ -55,7 +55,8 @@ attempt leaked `__test/scenario` into the release bundle; CI now greps for it).
   for the OS to evict.
 - **Coverage gate is lines 95 % / branches 85 %** (currently ~98 % / ~86 %). The untested branches are the "operation was
   replaced while this request was in flight" guards after each await; one test covers the scenario end to end.
-- **DELETE 404** is not special-cased (stays *Deletion not confirmed*).
+- **404 during a delete counts as deleted** (the job no longer exists, so nothing is left to remove). Without this a reset
+  mock left the app stuck: no new import is allowed while a delete is pending.
 - **Base URL override** lives in memory only.
 - **One operation at a time.** A new import is allowed once the previous one is ready, failed or deleted; starting one
   while a previous result is still on the server does not delete it.

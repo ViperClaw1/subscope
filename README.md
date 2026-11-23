@@ -76,7 +76,9 @@ npx expo run:android         # development build on a device/emulator
 
 - **Android emulator / USB device:** `adb reverse tcp:8787 tcp:8787`, then the default `http://127.0.0.1:8787` works.
 - **iOS simulator:** reaches the host loopback directly.
-- **Physical iPhone:** LAN address of the computer in the diagnostics panel (see above); allow Local Network access.
+- **Physical iPhone:** in development the app uses the computer's LAN address that served the bundle (`<ip>:8787`)
+  automatically; start the mock with `HOST=0.0.0.0` and allow Local Network access. With `--tunnel`, enter the LAN
+  address in the diagnostics panel.
 - Other base URL at build time: `EXPO_PUBLIC_MOCK_URL=http://192.168.0.10:8787`.
 
 Fixtures onto a device:

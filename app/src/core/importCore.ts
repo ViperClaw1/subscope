@@ -22,6 +22,9 @@ type Deps = {
   log?: Log;
 };
 
+/** 404 while deleting: the server holds nothing for this job any more, which is the goal of the delete. */
+const gone = (jobId: string): JobView => ({ jobId, status: 'deleted', revision: 5 });
+
 const POLL_START_MS = 400;
 const POLL_MAX_MS = 2000;
 
@@ -186,7 +189,12 @@ export class ImportCore {
   /** Where does a requested delete stand? Used on relaunch and by "Refresh status". */
   private async checkDelete(opId: string) {
     const view = await this.fetchJob(opId);
-    if (!view || !this.current(opId)) return;
+    if (!this.current(opId)) return;
+    if (!view) {
+      // non-200 (offline already shows 'network'): offer the retry instead of sitting on a spinner
+      if (this.snap.notice !== 'network') this.setNotice('delete_unconfirmed');
+      return;
+    }
     if (view.status === 'deleting') return this.startPolling();
     if (view.status !== 'deleted') this.setNotice('delete_unconfirmed'); // DELETE never landed
   }
@@ -202,9 +210,10 @@ export class ImportCore {
       if (this.current(opId)) this.setNotice('network');
       return null;
     }
-    if (res.status !== 200 || !res.body) return null;
-    await this.apply(opId, res.body);
-    return res.body;
+    const view = res.status === 404 && op.phase === 'deleteRequested' ? gone(op.jobId) : res.body;
+    if ((res.status !== 200 && res.status !== 404) || !view) return null;
+    await this.apply(opId, view);
+    return view;
   }
 
   /** "Refresh status" button and AppState → active. Works after polling stopped at ready. */
@@ -267,6 +276,7 @@ export class ImportCore {
       return;
     }
     if (!this.current(opId)) return;
+    if (res.status === 404) return this.apply(opId, gone(op.jobId));
     if (res.status !== 202 || !res.body) return this.setNotice('delete_unconfirmed'); // e.g. 503
     await this.apply(opId, res.body); // deleting/4 — never shown as "deleted"
     this.startPolling();
