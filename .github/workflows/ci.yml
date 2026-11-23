@@ -213,8 +213,9 @@ jobs:
           echo "app pid: $PID"
           sleep 15
           xcrun simctl io "$UDID" screenshot ios-launch.png
-          kill -0 "$PID" # the app must still be running
-          kill -INT "$REC"; wait "$REC" || true
+          ALIVE=0; kill -0 "$PID" && ALIVE=1
+          kill -INT "$REC"; wait "$REC" || true # finalize the mp4 first: it matters most when the app died
+          [ "$ALIVE" = 1 ] || { echo "::error::app exited within 15 s of launch"; exit 1; }
       - uses: actions/upload-artifact@v4
         if: always()
         with:

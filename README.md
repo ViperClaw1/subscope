@@ -165,7 +165,8 @@ release APK's permissions, and the iOS Info.plist.
    ready. Diagnostics: `newJobs=1`.
 3. happy import → ready → `stale_status` → Refresh status ×2 → stays ready; diagnostics shows `ignored processing r2`.
 4. `delete_failure` → Delete → _Deletion not confirmed_ → `happy` → Retry deletion → _Deleting…_ →
-   _Data deleted from the server_.
+   _Data deleted from the server_. (If the job is gone instead, e.g. the mock was reset mid-delete, a 404 ends in
+   _Import no longer on the server_ — never "deleted", since only `deleted/5` confirms a deletion.)
 5. `spoofed.pdf` and `oversize.csv` → rejected with a reason; `createRequests` unchanged.
 
 See also [RELEASE_NOTE.md](RELEASE_NOTE.md) and [SELF_REVIEW.md](SELF_REVIEW.md).

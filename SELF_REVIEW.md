@@ -53,7 +53,7 @@ attempt leaked `__test/scenario` into the release bundle; CI now greps for it).
   change it between attempts.
 - **Orphan sweep covers `cache/imports/` only.** A crash between picking and the move leaves the picker's own cache copy
   for the OS to evict.
-- **Coverage gate is lines 95 % / branches 85 %** (currently ~98 % / ~86 %). The untested branches are the "operation was
+- **Coverage gate is lines 95 % / branches 85 %** (currently ~98 % / ~85.7 %, a thin margin). The untested branches are the "operation was
   replaced while this request was in flight" guards after each await; one test covers the scenario end to end.
 - **404 during a delete ends in its own terminal state, `gone`** ("Import no longer on the server … Deletion was not
   confirmed"), never "deleted": only `deleted/5` is a confirmation. Without a terminal state a reset mock left the app
