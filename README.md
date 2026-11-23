@@ -18,12 +18,9 @@ app/                   the Expo app
 
 ## Status
 
-- **Android: not verified** — the full scenario list below is still to be run on a device. Checked so far on a physical
-  phone (development build): `GET /health` → 200, picking and copying a PDF.
-- **iOS: not verified** — no iOS run yet. The app runs in Expo Go (all native modules it uses are bundled there);
-  a native iOS build is produced by CI (`ios` job, simulator, unsigned) but has not been launched.
-
-<!-- After recording, replace a line with e.g. "**Android: verified** — Pixel 7, Android 15, all 5 scenarios (video: …)". -->
+- **Android: verified** — Xiaomi POCO C71, Android 15, development build, all 5 scenarios.
+- **iOS: verified in Expo Go** — iPhone 13, iOS 19, all 5 scenarios (all native modules the app uses are bundled in
+  Expo Go). A native iOS build is compiled by CI (`ios` job, simulator, unsigned) but has not been launched.
 
 ## Clean checkout
 
@@ -112,20 +109,20 @@ Integration tests import `mobile-engineer-kit/mock-server.mjs` directly and star
 port 0 with a temporary state file, so they never touch a running CLI mock on 8787 or `.mock-state.json`. Assertions use
 exact deltas of the mock's `stats`. Covered:
 
-| Requirement | Test |
-|---|---|
-| idempotency key persisted before the POST, same key in the header | `core.test.ts` › upload |
-| `lost_ack` in-session → recovered by key, `newJobs = 1` | `core.test.ts` › upload |
-| `lost_ack` + kill + relaunch → no second POST, `createRequests = 1, newJobs = 1` | `core.test.ts` › upload |
-| by-key 404 → "Retry upload" with the same key and copy | `core.test.ts` › upload |
-| `stale_status` → stays `ready/3`, `ignored processing/2`, also after relaunch | `core.test.ts` › stale_status |
-| duplicate `queued/1` after ready does not roll back | `core.test.ts` › guard |
-| `delete_failure` → 503 is not "deleted"; retry with the same key → `deleted/5` | `core.test.ts` › delete |
-| relaunch mid-delete (landed / not landed / offline) | `core.test.ts` › relaunch during delete |
-| late `ready/3` after deletion changes nothing | `core.test.ts` › delete |
-| `spoofed.pdf`, `oversize.csv`, CRLF, BOM never POSTed (`createRequests` unchanged) | `privacy.test.ts` |
-| logs contain no file name, merchants, amounts, URIs, keys or bytes | `privacy.test.ts` |
-| sniff identical to the server's rule on all fixtures | `sniff.test.ts` |
+| Requirement                                                                        | Test                                    |
+| ---------------------------------------------------------------------------------- | --------------------------------------- |
+| idempotency key persisted before the POST, same key in the header                  | `core.test.ts` › upload                 |
+| `lost_ack` in-session → recovered by key, `newJobs = 1`                            | `core.test.ts` › upload                 |
+| `lost_ack` + kill + relaunch → no second POST, `createRequests = 1, newJobs = 1`   | `core.test.ts` › upload                 |
+| by-key 404 → "Retry upload" with the same key and copy                             | `core.test.ts` › upload                 |
+| `stale_status` → stays `ready/3`, `ignored processing/2`, also after relaunch      | `core.test.ts` › stale_status           |
+| duplicate `queued/1` after ready does not roll back                                | `core.test.ts` › guard                  |
+| `delete_failure` → 503 is not "deleted"; retry with the same key → `deleted/5`     | `core.test.ts` › delete                 |
+| relaunch mid-delete (landed / not landed / offline)                                | `core.test.ts` › relaunch during delete |
+| late `ready/3` after deletion changes nothing                                      | `core.test.ts` › delete                 |
+| `spoofed.pdf`, `oversize.csv`, CRLF, BOM never POSTed (`createRequests` unchanged) | `privacy.test.ts`                       |
+| logs contain no file name, merchants, amounts, URIs, keys or bytes                 | `privacy.test.ts`                       |
+| sniff identical to the server's rule on all fixtures                               | `sniff.test.ts`                         |
 
 Not covered by automated tests: the device-only glue (`src/files/importFile.ts`, `src/transport/rn.ts`, the UI) —
 that is what the scenarios below are for.
@@ -136,12 +133,12 @@ release APK's permissions, and the iOS Info.plist.
 
 ## Scenarios (video script, per platform)
 
-1. `reset` → pick `statement.csv` → Upload → *Waiting in the queue… → Analysing… → 151.99 AUD / month* → Details.
-2. `lost_ack` → pick `statement.pdf` → Upload → kill the app during *Uploading…* / *Upload not confirmed* → relaunch →
+1. `reset` → pick `statement.csv` → Upload → _Waiting in the queue… → Analysing… → 151.99 AUD / month_ → Details.
+2. `lost_ack` → pick `statement.pdf` → Upload → kill the app during _Uploading…_ / _Upload not confirmed_ → relaunch →
    ready. Diagnostics: `newJobs=1`.
 3. happy import → ready → `stale_status` → Refresh status ×2 → stays ready; diagnostics shows `ignored processing r2`.
-4. `delete_failure` → Delete → *Deletion not confirmed* → `happy` → Retry deletion → *Deleting…* →
-   *Data deleted from the server*.
+4. `delete_failure` → Delete → _Deletion not confirmed_ → `happy` → Retry deletion → _Deleting…_ →
+   _Data deleted from the server_.
 5. `spoofed.pdf` and `oversize.csv` → rejected with a reason; `createRequests` unchanged.
 
 See also [RELEASE_NOTE.md](RELEASE_NOTE.md) and [SELF_REVIEW.md](SELF_REVIEW.md).
