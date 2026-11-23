@@ -1,5 +1,15 @@
 import { useEffect, useState, useSyncExternalStore, type ComponentType } from 'react';
-import { ActivityIndicator, AppState, Button, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useHeaderHeight } from 'expo-router/react-navigation';
+import {
+  ActivityIndicator,
+  AppState,
+  Button,
+  KeyboardAvoidingView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import type { Notice } from '../core/importCore';
 import { formatMinor, monthlyTotalMinor } from '../core/money';
@@ -26,6 +36,7 @@ export function ImportScreen() {
   const { op, notice } = useSyncExternalStore(importCore.subscribe, importCore.getSnapshot);
   const [picked, setPicked] = useState<PickedFile | null>(null);
   const [rejected, setRejected] = useState<RejectReason | null>(null);
+  const headerHeight = useHeaderHeight();
 
   useEffect(() => {
     void (async () => {
@@ -65,7 +76,9 @@ export function ImportScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.root}>
+    // Edge-to-edge Android no longer resizes for the keyboard: padding on both platforms, offset by the header.
+    <KeyboardAvoidingView style={styles.fill} behavior="padding" keyboardVerticalOffset={headerHeight}>
+    <ScrollView contentContainerStyle={styles.root} keyboardShouldPersistTaps="handled">
       {picked ? (
         <Confirm file={picked} onUpload={() => void upload()} onCancel={cancel} />
       ) : (
@@ -83,6 +96,7 @@ export function ImportScreen() {
       )}
       {DiagnosticsPanel ? <DiagnosticsPanel op={op} /> : null}
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -237,6 +251,7 @@ function Busy({ title }: { title: string }) {
 const formatSize = (b: number) => (b < 1024 * 1024 ? `${Math.ceil(b / 1024)} KB` : `${formatMinor(Math.round((b / (1024 * 1024)) * 100))} MB`);
 
 const styles = StyleSheet.create({
+  fill: { flex: 1 },
   root: { flexGrow: 1, gap: 16, padding: 16, justifyContent: 'center' },
   box: { gap: 10 },
   busy: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
