@@ -31,7 +31,7 @@ Android release APK, iOS build + simulator launch, docs).
 ### Videos
 
 All 10 clips (Android ×5, iOS native ×5), the exact commit and its green CI run:
-[Release v1.0.0](https://github.com/ViperClaw1/subscope/releases/tag/v1.0.0).
+[latest release](https://github.com/ViperClaw1/subscope/releases/latest).
 
 ## Clean checkout
 
