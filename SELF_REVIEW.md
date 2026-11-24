@@ -82,6 +82,7 @@ workflow and these documents. What I checked myself rather than taking on trust:
 
 ## What I would check next
 
-- The full scenario list on both platforms with the largest system font and a small screen (iPhone SE / small AVD).
+- Largest system font checked on both platforms (screenshots in the release); a true small screen (iPhone SE /
+  small AVD) was not tested. The total wraps at "AUD /" (no non-breaking spaces yet).
 - ATS: on the sideloaded build, requests to the PC's bare LAN IP went through with `NSAllowsLocalNetworking` alone —
   no `NSAllowsArbitraryLoads` exception was needed. A production API on HTTPS should drop both exceptions.
