@@ -21,20 +21,17 @@ app/                   the Expo app
 ## Status
 
 - **Android: verified** — Xiaomi POCO C71, Android 15, development build, all 5 scenarios.
-- **iOS: not verified natively** — the 5 scenarios were run in Expo Go only (iPhone 13, iOS 26). The native Release
-  build is compiled in CI and launched on an iOS simulator (`ios` job, artifact `ios-simulator-launch`: video + screenshot);
-  the scenarios were not run on it.
+- **iOS: verified** — iPhone 13, iOS 18.3.1, native Release build from the CI `ios` job (unsigned `.ipa`, sideloaded with
+  a free Apple ID), all 5 scenarios. No Mac was available, so `npx expo run:ios` from a clean checkout was run only in CI
+  (simulator build + launch, artifact `ios-simulator-launch`).
 
 Test results: the CI badge above links the runs on `main` (kit, lint/typecheck, unit + integration tests, bundle privacy,
 Android release APK, iOS build + simulator launch, docs).
 
 ### Videos
 
-| Platform | Scenario | Link |
-| --- | --- | --- |
-| Android | 1–5 (happy, lost_ack + relaunch, stale_status, delete_failure, rejects) | _to be added_ |
-| iOS native | 1–5 | _to be added_ |
-| iOS simulator | native launch (CI artifact `ios-simulator-launch`) | see the latest `ios` job |
+All 10 clips (Android ×5, iOS native ×5), the exact commit and its green CI run:
+[Release v1.0.0](https://github.com/ViperClaw1/subscope/releases/tag/v1.0.0).
 
 ## Clean checkout
 
@@ -90,7 +87,7 @@ npx expo run:android         # development build on a device/emulator
 - **Physical iPhone:** in development the app uses the computer's LAN address that served the bundle (`<ip>:8787`)
   automatically; start the mock with `HOST=0.0.0.0` and allow Local Network access. With `--tunnel`, enter the LAN
   address in the diagnostics panel.
-- Other base URL at build time: `EXPO_PUBLIC_MOCK_URL=http://192.168.0.10:8787`.
+- Other base URL at build time: `EXPO_PUBLIC_MOCK_URL=http://<PC LAN IP>:8787`.
 
 Fixtures onto a device:
 

@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       mock_url:
-        description: 'Mock base URL baked into the device test IPA, e.g. http://192.168.0.10:8787 (optional)'
+        description: 'Mock base URL baked into the device test IPA, e.g. http://<PC LAN IP>:8787 (optional)'
         required: false
         default: ''
 

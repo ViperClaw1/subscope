@@ -73,7 +73,8 @@ workflow and these documents. What I checked myself rather than taking on trust:
   truth for statuses, revisions and the format rule.
 - The integration tests run against the kit's own `createMockServer` and assert exact `stats` deltas
   (`createRequests`, `newJobs`), so a passing test means the mock really saw one POST, not that a stub agreed.
-- Ran the scenarios by hand on a device (Android development build; iOS so far in Expo Go only, see README › Status)
+- Ran the scenarios by hand on a device (Android development build; iOS as a native Release build sideloaded onto an iPhone 13,
+  iOS 18.3.1)
   and watched the diagnostics panel's `stats` and ignored-response line.
 - CI failures were reproduced from the logs and fixed one at a time (see the `fix(CI)` commits), not silenced.
 - Corrected AI mistakes found on review: e.g. a 404 during delete was first shown as "deleted", and the README first
@@ -82,5 +83,5 @@ workflow and these documents. What I checked myself rather than taking on trust:
 ## What I would check next
 
 - The full scenario list on both platforms with the largest system font and a small screen (iPhone SE / small AVD).
-- The 5 scenarios on a native iOS build (sideloaded CI `.ipa`, README › iOS on a device without a Mac), including
-  whether ATS `NSAllowsLocalNetworking` lets requests to a bare LAN IP through.
+- ATS: on the sideloaded build, requests to the PC's bare LAN IP went through with `NSAllowsLocalNetworking` alone —
+  no `NSAllowsArbitraryLoads` exception was needed. A production API on HTTPS should drop both exceptions.
